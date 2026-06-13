@@ -60,3 +60,13 @@ export const createTripSchema = z
   );
 
 export type CreateTripInput = z.infer<typeof createTripSchema>;
+
+// POST /api/trips/[tripId]/availability — body schema. Enforces
+// TECH_SPEC.md "Validation rules" for availability submission.
+export const submitAvailabilitySchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(50),
+  blockedDates: z.array(isoDate).max(366),
+  memberToken: z.string().min(1).optional(),
+});
+
+export type SubmitAvailabilityInput = z.infer<typeof submitAvailabilitySchema>;
