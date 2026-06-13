@@ -24,10 +24,7 @@ create table if not exists trips (
   constraint trips_allowed_days_nonempty
     check (array_length(allowed_days_of_week, 1) >= 1),
   constraint trips_allowed_days_in_range
-    check (
-      (select bool_and(d between 0 and 6)
-         from unnest(allowed_days_of_week) as d)
-    )
+    check (allowed_days_of_week <@ array[0,1,2,3,4,5,6])
 );
 
 create table if not exists members (
