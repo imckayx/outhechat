@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getMemberByToken, getPublicTrip } from "@/lib/data";
@@ -5,6 +6,40 @@ import { getMemberByToken, getPublicTrip } from "@/lib/data";
 import { RespondForm } from "./respond-form";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tripId: string }>;
+}): Promise<Metadata> {
+  const { tripId } = await params;
+  const trip = await getPublicTrip(tripId);
+  if (!trip) {
+    return { title: "Trip not found — Group Trip Planner" };
+  }
+
+  const subtitle = trip.destination
+    ? `${trip.destination} · ${trip.responseCount} of ${trip.expectedGroupSize} responded`
+    : `${trip.responseCount} of ${trip.expectedGroupSize} responded`;
+
+  const title = `${trip.name} — Group Trip Planner`;
+  const description = `${subtitle}. Tap to mark dates you can't make it.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title: trip.name,
+      description: subtitle,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: trip.name,
+      description: subtitle,
+    },
+  };
+}
 
 export default async function TripRespondPage({
   params,
