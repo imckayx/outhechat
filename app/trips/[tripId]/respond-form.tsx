@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
-import { CalendarPicker } from "@/components/calendar-picker";
+import { CalendarPicker, type CalendarPickerMode } from "@/components/calendar-picker";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -15,7 +15,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { MemberPrefill } from "@/lib/data";
+import { dayOfWeek, eachDateInRange } from "@/lib/dates";
 import type { DayOfWeek } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type RespondFormProps = {
   tripId: string;
@@ -59,9 +61,34 @@ export function RespondForm({
   disabled,
 }: RespondFormProps) {
   const [name, setName] = useState(prefill?.name ?? "");
-  const [blockedDates, setBlockedDates] = useState<string[]>(
+  // `mode` controls how the calendar selection is interpreted at
+  // submit time. Default is "unavailable" so prefilled blocked dates
+  // round-trip without any flipping.
+  const [mode, setMode] = useState<CalendarPickerMode>("unavailable");
+  const [selectedDates, setSelectedDates] = useState<string[]>(
     prefill?.blockedDates ?? []
   );
+
+  // All in-window dates whose weekday is in `allowedDaysOfWeek`. Used
+  // both to invert the selection on mode switch and to derive the
+  // blockedDates payload when submitting in "available" mode.
+  const allowedDates = useMemo(() => {
+    const allowed = new Set(allowedDaysOfWeek);
+    return eachDateInRange(searchWindowStart, searchWindowEnd).filter((iso) =>
+      allowed.has(dayOfWeek(iso) as DayOfWeek)
+    );
+  }, [searchWindowStart, searchWindowEnd, allowedDaysOfWeek]);
+
+  function switchMode(next: CalendarPickerMode) {
+    if (next === mode) return;
+    // Invert: dates the user did NOT pick in the old mode are the
+    // dates that carry their intent into the new mode. This way
+    // "I can't make these 3" flips to "I can make all the others"
+    // without losing work.
+    const prev = new Set(selectedDates);
+    setSelectedDates(allowedDates.filter((iso) => !prev.has(iso)));
+    setMode(next);
+  }
 
   const [submitting, setSubmitting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
@@ -74,6 +101,15 @@ export function RespondForm({
     setSubmitting(true);
     setTopError(null);
     setFieldErrors({});
+
+    // The API only knows about blocked dates. In "available" mode,
+    // every allowed in-window date the user did NOT pick becomes a
+    // conflict.
+    const selectedSet = new Set(selectedDates);
+    const blockedDates =
+      mode === "unavailable"
+        ? selectedDates
+        : allowedDates.filter((iso) => !selectedSet.has(iso));
 
     try {
       const res = await fetch(`/api/trips/${tripId}/availability`, {
@@ -124,25 +160,31 @@ export function RespondForm({
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Tap the dates you can&apos;t make it</Label>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Label>
+            {mode === "unavailable"
+              ? "Tap the dates you can't make it"
+              : "Tap the dates you can make it"}
+          </Label>
+          <ModeToggle mode={mode} onChange={switchMode} disabled={disabled} />
+        </div>
         <p className="text-xs text-muted-foreground">
-          Default is available. Only mark conflicts.
+          {mode === "unavailable"
+            ? "Default is available. Only mark conflicts."
+            : "Default is unavailable. Mark every date you can make it."}
         </p>
         <div className="rounded-lg border p-3 sm:p-4">
           <CalendarPicker
             searchWindowStart={searchWindowStart}
             searchWindowEnd={searchWindowEnd}
             allowedDaysOfWeek={allowedDaysOfWeek}
-            blockedDates={blockedDates}
-            onChange={setBlockedDates}
+            selectedDates={selectedDates}
+            mode={mode}
+            onChange={setSelectedDates}
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          {blockedDates.length === 0
-            ? "You haven't marked any conflicts."
-            : `${blockedDates.length} ${
-                blockedDates.length === 1 ? "day" : "days"
-              } marked unavailable`}
+          {selectionHint(mode, selectedDates.length)}
         </p>
       </div>
 
@@ -160,6 +202,62 @@ export function RespondForm({
             : "Submit response"}
       </Button>
     </form>
+  );
+}
+
+function selectionHint(mode: CalendarPickerMode, count: number): string {
+  if (mode === "unavailable") {
+    return count === 0
+      ? "You haven't marked any conflicts."
+      : `${count} ${count === 1 ? "day" : "days"} marked unavailable`;
+  }
+  return count === 0
+    ? "You haven't marked any dates yet."
+    : `${count} ${count === 1 ? "day" : "days"} marked available`;
+}
+
+function ModeToggle({
+  mode,
+  onChange,
+  disabled,
+}: {
+  mode: CalendarPickerMode;
+  onChange: (m: CalendarPickerMode) => void;
+  disabled: boolean;
+}) {
+  const options: { value: CalendarPickerMode; label: string }[] = [
+    { value: "unavailable", label: "Mark conflicts" },
+    { value: "available", label: "Mark availability" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label="Selection mode"
+      className="inline-flex rounded-md border bg-muted p-0.5 text-xs"
+    >
+      {options.map((opt) => {
+        const active = opt.value === mode;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            disabled={disabled}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "rounded px-2.5 py-1 font-medium transition-colors",
+              active
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+              disabled && "pointer-events-none opacity-50"
+            )}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
