@@ -245,10 +245,21 @@ Enforce on `POST /api/trips/[tripId]/availability`:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=        # server-only; never exposed to client
-NEXT_PUBLIC_APP_URL=              # e.g. https://triptool.vercel.app — used to build shareable links
+NEXT_PUBLIC_APP_URL=              # Production only. Canonical base URL used in share/admin/edit links.
 ```
 
 The service role key is used in API routes for writes. The anon key is used for any client-side reads (if any). Prefer server-side data fetching where possible.
+
+### Base URL resolution
+
+Every absolute URL the app emits — share links, admin links, member edit links, and the layout's `metadataBase` — flows through `lib/app-url.ts`. The helper picks the first available source:
+
+1. `NEXT_PUBLIC_APP_URL` — set this **only on Production** in Vercel. The canonical domain shown to real users.
+2. `VERCEL_URL` — Vercel injects this on every deployment, including previews. With (1) scoped to Production only, previews fall back here and self-link to their own host.
+3. The incoming request origin — used by route handlers when neither env var is set (non-Vercel hosting).
+4. `http://localhost:3000` — last-resort default for local dev when `NEXT_PUBLIC_APP_URL` is not in `.env.local`.
+
+**Do not set `NEXT_PUBLIC_APP_URL` on the Preview or Development environments in Vercel.** Doing so makes preview deployments hand out share/admin/edit links pointing at production, which silently bypasses the branch you're trying to test.
 
 ## Mobile and link previews
 
