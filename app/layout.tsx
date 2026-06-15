@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+import { getAppBaseUrl } from "@/lib/app-url";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -12,10 +14,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
-
 export const metadata: Metadata = {
-  metadataBase: APP_URL ? new URL(APP_URL) : undefined,
+  metadataBase: new URL(getAppBaseUrl()),
   title: {
     default: "Group Trip Planner",
     template: "%s",

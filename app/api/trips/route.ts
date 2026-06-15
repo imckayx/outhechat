@@ -1,19 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getAppBaseUrl } from "@/lib/app-url";
 import { getServerClient } from "@/lib/supabase";
 import { generateAdminToken, generateTripId } from "@/lib/tokens";
 import { createTripSchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
-
-function getAppBaseUrl(req: Request): string {
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  // Fallback so local dev still produces working links if the env var
-  // is unset.
-  return new URL(req.url).origin;
-}
 
 export async function POST(req: Request) {
   let json: unknown;

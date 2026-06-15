@@ -1,18 +1,13 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+import { getAppBaseUrl } from "@/lib/app-url";
 import { isInRange } from "@/lib/dates";
 import { getServerClient } from "@/lib/supabase";
 import { generateMemberToken } from "@/lib/tokens";
 import { submitAvailabilitySchema } from "@/lib/validation";
 
 export const dynamic = "force-dynamic";
-
-function getAppBaseUrl(req: Request): string {
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  return new URL(req.url).origin;
-}
 
 export async function POST(
   req: Request,
