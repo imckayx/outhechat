@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import {
+  addDays,
   dayOfWeek,
   formatISODate,
   isInRange,
@@ -12,12 +13,21 @@ import {
 import type { DayOfWeek } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+export type CalendarPickerMode = "unavailable" | "available";
+
 type CalendarPickerProps = {
   searchWindowStart: string;
   searchWindowEnd: string;
   allowedDaysOfWeek: DayOfWeek[];
-  blockedDates: string[];
-  onChange: (blocked: string[]) => void;
+  selectedDates: string[];
+  mode: CalendarPickerMode;
+  // When set, tapping an unselected date adds up to this many
+  // consecutive allowed in-window days starting from it. Walking
+  // stops at the first day that's out-of-window or not in
+  // allowedDaysOfWeek, so e.g. a Mon-Fri trip won't bridge a
+  // weekend when the user taps Friday.
+  rangeSelectLength?: number;
+  onChange: (selected: string[]) => void;
 };
 
 type MonthCell = {
@@ -87,31 +97,60 @@ export function CalendarPicker({
   searchWindowStart,
   searchWindowEnd,
   allowedDaysOfWeek,
-  blockedDates,
+  selectedDates,
+  mode,
+  rangeSelectLength,
   onChange,
 }: CalendarPickerProps) {
-  const blockedSet = useMemo(() => new Set(blockedDates), [blockedDates]);
+  const selectedSet = useMemo(() => new Set(selectedDates), [selectedDates]);
   const months = useMemo(
     () => buildMonths(searchWindowStart, searchWindowEnd, allowedDaysOfWeek),
     [searchWindowStart, searchWindowEnd, allowedDaysOfWeek]
   );
+  const allowedDaySet = useMemo(
+    () => new Set(allowedDaysOfWeek),
+    [allowedDaysOfWeek]
+  );
 
   function toggle(iso: string) {
-    const next = new Set(blockedSet);
+    const next = new Set(selectedSet);
     if (next.has(iso)) {
       next.delete(iso);
+    } else if (rangeSelectLength && rangeSelectLength > 1) {
+      const endOfWindow = parseISODate(searchWindowEnd);
+      let cur = parseISODate(iso);
+      for (let i = 0; i < rangeSelectLength; i++) {
+        if (cur > endOfWindow) break;
+        if (!allowedDaySet.has(cur.getDay() as DayOfWeek)) break;
+        next.add(formatISODate(cur));
+        cur = addDays(cur, 1);
+      }
     } else {
       next.add(iso);
     }
     onChange(Array.from(next).sort());
   }
 
+  // Selected-cell styling and legend wording flip based on whether
+  // the user is marking conflicts (red) or marking dates they can
+  // make (emerald). The data the calendar emits is the same shape;
+  // only its meaning changes with mode.
+  const isAvailableMode = mode === "available";
+  const selectedClass = isAvailableMode
+    ? "border-emerald-600 bg-emerald-500/15 text-emerald-700"
+    : "border-destructive bg-destructive/15 text-destructive";
+  const selectedSwatchClass = isAvailableMode
+    ? "border border-emerald-600 bg-emerald-500/15"
+    : "border border-destructive bg-destructive/15";
+  const unselectedLegend = isAvailableMode ? "Not marked" : "Available";
+  const selectedLegend = isAvailableMode ? "Can make it" : "Can't make it";
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <Swatch className="border border-input bg-background" /> Available
-        <Swatch className="border border-destructive bg-destructive/15" />
-        Can&apos;t make it
+        <Swatch className="border border-input bg-background" /> {unselectedLegend}
+        <Swatch className={selectedSwatchClass} />
+        {selectedLegend}
       </div>
 
       {months.map((month) => (
@@ -131,7 +170,7 @@ export function CalendarPicker({
               if (cell.iso === null) {
                 return <div key={key} />;
               }
-              const blocked = blockedSet.has(cell.iso);
+              const selected = selectedSet.has(cell.iso);
               if (!cell.inWindow) {
                 return (
                   <div
@@ -158,11 +197,11 @@ export function CalendarPicker({
                   key={key}
                   type="button"
                   onClick={() => toggle(cell.iso!)}
-                  aria-pressed={blocked}
+                  aria-pressed={selected}
                   className={cn(
                     "flex h-10 items-center justify-center rounded-md border text-sm transition-colors",
-                    blocked
-                      ? "border-destructive bg-destructive/15 text-destructive"
+                    selected
+                      ? selectedClass
                       : "border-input bg-background hover:bg-accent"
                   )}
                 >

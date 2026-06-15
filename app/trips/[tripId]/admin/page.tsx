@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getAppBaseUrl } from "@/lib/app-url";
 import { getAdminView } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
@@ -128,8 +129,7 @@ export default async function AdminPage({
 }
 
 function buildShareUrl(tripId: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ?? "";
-  return `${base}/trips/${tripId}`;
+  return `${getAppBaseUrl()}/trips/${tripId}`;
 }
 
 function ResponseRoster({
