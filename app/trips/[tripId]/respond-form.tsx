@@ -65,30 +65,28 @@ export function RespondForm({
   // submit time. Default is "unavailable" so prefilled blocked dates
   // round-trip without any flipping.
   const [mode, setMode] = useState<CalendarPickerMode>("unavailable");
-  const [selectedDates, setSelectedDates] = useState<string[]>(
+  // Each mode tracks its own selection so flipping the toggle doesn't
+  // throw away work the user did in the other mode. Available mode
+  // starts empty by design — the user opts in by tapping the days
+  // they can make, rather than starting from "yes to everything".
+  const [unavailableDates, setUnavailableDates] = useState<string[]>(
     prefill?.blockedDates ?? []
   );
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const selectedDates =
+    mode === "unavailable" ? unavailableDates : availableDates;
+  const setSelectedDates =
+    mode === "unavailable" ? setUnavailableDates : setAvailableDates;
 
   // All in-window dates whose weekday is in `allowedDaysOfWeek`. Used
-  // both to invert the selection on mode switch and to derive the
-  // blockedDates payload when submitting in "available" mode.
+  // to derive the blockedDates payload when submitting in "available"
+  // mode.
   const allowedDates = useMemo(() => {
     const allowed = new Set(allowedDaysOfWeek);
     return eachDateInRange(searchWindowStart, searchWindowEnd).filter((iso) =>
       allowed.has(dayOfWeek(iso) as DayOfWeek)
     );
   }, [searchWindowStart, searchWindowEnd, allowedDaysOfWeek]);
-
-  function switchMode(next: CalendarPickerMode) {
-    if (next === mode) return;
-    // Invert: dates the user did NOT pick in the old mode are the
-    // dates that carry their intent into the new mode. This way
-    // "I can't make these 3" flips to "I can make all the others"
-    // without losing work.
-    const prev = new Set(selectedDates);
-    setSelectedDates(allowedDates.filter((iso) => !prev.has(iso)));
-    setMode(next);
-  }
 
   const [submitting, setSubmitting] = useState(false);
   const [topError, setTopError] = useState<string | null>(null);
@@ -161,17 +159,13 @@ export function RespondForm({
 
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Label>
-            {mode === "unavailable"
-              ? "Tap the dates you can't make it"
-              : "Tap the dates you can make it"}
-          </Label>
-          <ModeToggle mode={mode} onChange={switchMode} disabled={disabled} />
+          <Label>Please mark your availability</Label>
+          <ModeToggle mode={mode} onChange={setMode} disabled={disabled} />
         </div>
         <p className="text-xs text-muted-foreground">
           {mode === "unavailable"
-            ? "Default is available. Only mark conflicts."
-            : "Default is unavailable. Mark every date you can make it."}
+            ? "Tap any days you can't make it — we'll assume you're free the rest of the time."
+            : "Tap each day you're free. Anything you don't tap counts as a no."}
         </p>
         <div className="rounded-lg border p-3 sm:p-4">
           <CalendarPicker
@@ -206,14 +200,15 @@ export function RespondForm({
 }
 
 function selectionHint(mode: CalendarPickerMode, count: number): string {
+  const dayWord = count === 1 ? "day" : "days";
   if (mode === "unavailable") {
     return count === 0
-      ? "You haven't marked any conflicts."
-      : `${count} ${count === 1 ? "day" : "days"} marked unavailable`;
+      ? "Nothing marked yet — we'll assume you're free the whole time."
+      : `${count} ${dayWord} marked unavailable`;
   }
   return count === 0
-    ? "You haven't marked any dates yet."
-    : `${count} ${count === 1 ? "day" : "days"} marked available`;
+    ? "Nothing marked yet — tap the days you're free."
+    : `${count} ${dayWord} marked available`;
 }
 
 function ModeToggle({
@@ -226,8 +221,8 @@ function ModeToggle({
   disabled: boolean;
 }) {
   const options: { value: CalendarPickerMode; label: string }[] = [
-    { value: "unavailable", label: "Mark conflicts" },
-    { value: "available", label: "Mark availability" },
+    { value: "available", label: "I'm available" },
+    { value: "unavailable", label: "Unavailable" },
   ];
   return (
     <div
