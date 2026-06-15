@@ -81,6 +81,7 @@ export default async function TripRespondPage({
 
       <RespondForm
         tripId={trip.id}
+        tripLengthDays={trip.tripLengthDays}
         searchWindowStart={trip.searchWindowStart}
         searchWindowEnd={trip.searchWindowEnd}
         allowedDaysOfWeek={trip.allowedDaysOfWeek}

@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import {
+  addDays,
   dayOfWeek,
   formatISODate,
   isInRange,
@@ -20,6 +21,12 @@ type CalendarPickerProps = {
   allowedDaysOfWeek: DayOfWeek[];
   selectedDates: string[];
   mode: CalendarPickerMode;
+  // When set, tapping an unselected date adds up to this many
+  // consecutive allowed in-window days starting from it. Walking
+  // stops at the first day that's out-of-window or not in
+  // allowedDaysOfWeek, so e.g. a Mon-Fri trip won't bridge a
+  // weekend when the user taps Friday.
+  rangeSelectLength?: number;
   onChange: (selected: string[]) => void;
 };
 
@@ -92,6 +99,7 @@ export function CalendarPicker({
   allowedDaysOfWeek,
   selectedDates,
   mode,
+  rangeSelectLength,
   onChange,
 }: CalendarPickerProps) {
   const selectedSet = useMemo(() => new Set(selectedDates), [selectedDates]);
@@ -99,11 +107,24 @@ export function CalendarPicker({
     () => buildMonths(searchWindowStart, searchWindowEnd, allowedDaysOfWeek),
     [searchWindowStart, searchWindowEnd, allowedDaysOfWeek]
   );
+  const allowedDaySet = useMemo(
+    () => new Set(allowedDaysOfWeek),
+    [allowedDaysOfWeek]
+  );
 
   function toggle(iso: string) {
     const next = new Set(selectedSet);
     if (next.has(iso)) {
       next.delete(iso);
+    } else if (rangeSelectLength && rangeSelectLength > 1) {
+      const endOfWindow = parseISODate(searchWindowEnd);
+      let cur = parseISODate(iso);
+      for (let i = 0; i < rangeSelectLength; i++) {
+        if (cur > endOfWindow) break;
+        if (!allowedDaySet.has(cur.getDay() as DayOfWeek)) break;
+        next.add(formatISODate(cur));
+        cur = addDays(cur, 1);
+      }
     } else {
       next.add(iso);
     }

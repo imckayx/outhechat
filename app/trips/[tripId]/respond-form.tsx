@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 
 type RespondFormProps = {
   tripId: string;
+  tripLengthDays: number;
   searchWindowStart: string;
   searchWindowEnd: string;
   allowedDaysOfWeek: DayOfWeek[];
@@ -54,6 +55,7 @@ function flattenErrors(tree: ZodTree | undefined): FieldErrors {
 
 export function RespondForm({
   tripId,
+  tripLengthDays,
   searchWindowStart,
   searchWindowEnd,
   allowedDaysOfWeek,
@@ -61,10 +63,12 @@ export function RespondForm({
   disabled,
 }: RespondFormProps) {
   const [name, setName] = useState(prefill?.name ?? "");
-  // `mode` controls how the calendar selection is interpreted at
-  // submit time. Default is "unavailable" so prefilled blocked dates
-  // round-trip without any flipping.
-  const [mode, setMode] = useState<CalendarPickerMode>("unavailable");
+  // Default mode is "available" for fresh responses. When editing an
+  // existing response we land on "unavailable" so the prefilled
+  // blocked dates are visible without an extra mode flip.
+  const [mode, setMode] = useState<CalendarPickerMode>(
+    prefill ? "unavailable" : "available"
+  );
   // Each mode tracks its own selection so flipping the toggle doesn't
   // throw away work the user did in the other mode. Available mode
   // starts empty by design — the user opts in by tapping the days
@@ -174,6 +178,7 @@ export function RespondForm({
             allowedDaysOfWeek={allowedDaysOfWeek}
             selectedDates={selectedDates}
             mode={mode}
+            rangeSelectLength={mode === "available" ? tripLengthDays : undefined}
             onChange={setSelectedDates}
           />
         </div>
